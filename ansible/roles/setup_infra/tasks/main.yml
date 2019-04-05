@@ -1,0 +1,28 @@
+---
+# Execute template
+- name: Execute Cloudformation File
+  cloudformation:
+    stack_name: "{{ STACK_PREFIX }}"
+    state: present
+    region: "{{ REGION }}"
+    disable_rollback: false
+    template: "../cloudformation/{{ CF_FILE }}"
+    template_parameters:
+      Project: "{{ PROJECT }}"
+      Service: "{{ SERVICE }}"
+      Cluster: "{{ ENVIRONMENTS[ ENV ][ 'CLUSTER' ] }}"
+      Environment: "{{ ENV }}"
+    tags:
+      Stack: "{{ STACK_PREFIX }}"
+  register: cf_infra_stack
+  async: "{{ MODE_VARS[ MODE ][ 'DEPLOY_TIMEOUT' ] }}"
+  poll: 0
+
+# Wait for CF template to finish
+- name: Wait for CF deployment to finish
+  async_status:
+    jid: "{{ cf_infra_stack.ansible_job_id }}"
+  register: cf_stack_async_poll_results
+  until: cf_stack_async_poll_results.finished
+  retries: "{{ (MODE_VARS[ MODE ][ 'DEPLOY_TIMEOUT' ] / 10) | int }}"
+  delay: 10

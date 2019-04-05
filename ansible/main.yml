@@ -1,0 +1,20 @@
+# Playbook is used to build and deploy an image or just to deploy an image. Functionality is dertermined by selecting roles below
+#
+#
+#
+ - hosts: all
+   become: no
+   # Key files should include only one variable named after the file
+   # example:
+   # ---
+   # wildcard_discoverykidsplay_com_key: |
+   #
+   vars_files:
+     - "users/main.yml"
+
+   roles:
+     - { role: build_scripts, tags: [ "build_scripts" ] }
+     - { role: setup_infra, tags: [ "setup_infra" ] }
+
+   environment:
+     AWS_REGION: "{{ REGION }}"

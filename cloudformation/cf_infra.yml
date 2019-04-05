@@ -1,0 +1,246 @@
+# Note that this is a YAML template, mainly so it can have inline comments.  It is transpiled to JSON by the command:
+#
+#    python -c "import sys, yaml, json; json.dump(yaml.load(open(\"$FilePath$\", "r")), sys.stdout, indent=4)"
+#
+# Which can be configured as a file watcher in JetBrains IDEs or some other process as appropriate
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Bastion for dev r/o db access"
+Parameters:
+
+  # The name of the project
+  Project:
+    Type: "String"
+    Description: "The name of the project"
+
+  # Environment name
+  Environment:
+    Type: "String"
+    Description: "The name of the environment"
+
+  # Service name
+  Service:
+    Type: "String"
+    Description: "The name of the service"
+
+  Cluster:
+    Type: "String"
+    Description: "Cluster in which to deploy the service"
+    AllowedValues: [ "pre-prod", "uat", "prod" ]
+
+Mappings:
+  VPCCidrMap: { all: { Cidr: "0.0.0.0/0" }, vpc: { Cidr: "10.0.0.0/8" }, officeIP: { Cidr: "198.147.19.2/32" } }
+  AWSRegionToAMI:
+    us-east-1:
+      AMIID: ami-275ffe31
+    us-east-2:
+      AMIID: ami-62745007
+    us-west-1:
+      AMIID: ami-689bc208
+    us-west-2:
+      AMIID: ami-62d35c02
+    eu-west-1:
+      AMIID: ami-95f8d2f3
+    eu-west-2:
+      AMIID: ami-bf9481db
+    eu-central-1:
+      AMIID: ami-085e8a67
+    ap-northeast-1:
+      AMIID: ami-f63f6f91
+    ap-southeast-1:
+      AMIID: ami-b4ae1dd7
+    ap-southeast-2:
+      AMIID: ami-fbe9eb98
+    ca-central-1:
+      AMIID: ami-ee58e58a
+
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups: [
+      {
+        Label: { default: "Definition" },
+        Parameters: [ "Project", "Environment", "Service" ]
+      }
+    ]
+    ParameterLabels:
+      Project: { default: "Project" }
+      Environment: { default: "Environment" }
+      Service: { default: "Service" }
+
+##########################################################################################################
+## Resources
+##########################################################################################################
+Resources:
+########################################################################################################################
+# SSH  Bastion Start
+########################################################################################################################
+  SshBastionDns:
+    Type: AWS::Route53::RecordSet
+    DependsOn: SshBastionEip
+    Properties:
+      HostedZoneId:
+        Fn::ImportValue: !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}-public-hosted-zone"
+      Comment: "DNS Entry for  MySql bastion user"
+      Name: !Join ["", [!Sub "${Project}-${Environment}-${Service}-ssh-bastion.", !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}.mercury.dnitv.com"]]
+      Type: "A"
+      TTL: 3600
+      ResourceRecords: 
+       - !Ref SshBastionEip
+
+  SshBastionEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc    
+
+  SshBastionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Project}-${Service}-${Environment}-ssh-bastion-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+         - Effect: "Allow"
+           Principal:
+             Service:
+              - "ec2.amazonaws.com"
+           Action:
+            - "sts:AssumeRole"
+      Policies:
+       - PolicyName: !Sub "${Project}-${Service}-${Environment}-ssh-bastion-policy"
+         PolicyDocument:
+           Version: "2012-10-17"
+           Statement:
+           - Effect: "Allow"
+             Action: 
+              - "ec2:AssociateAddress"
+             Resource:
+              - "*"
+           - Effect: "Allow"
+             Action:
+              - "s3:GetObject"
+             Resource:
+              - !Sub "${ConfigFilesS3.Arn}"
+              - !Sub "${ConfigFilesS3.Arn}/*"                     
+
+  SshBastionEc2Profile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+       - !Ref SshBastionIamRole
+
+  SshSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupName: !Sub "${Project}-${Service}-${Environment}-ssh-bastion-sg"
+      GroupDescription: "Allows  ssh access for secure mysql queuries"
+      Tags: [
+        { Key: "Name", Value: { "Fn::Join": [ "-", [ { Ref: "Project" }, { Ref: "Service" }, { Ref: "Environment" }, "ssh-bastion-sg" ] ] } },
+        { Key: "Management", Value: "managed" },
+        { Key: "Project", Value: { Ref: "Project" } },
+        { Key: "Environment", Value: { Ref: "Environment" } },
+        { Key: "Service", Value: { Ref: "Service" } }
+      ]
+      VpcId:
+        Fn::ImportValue: !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}-vpc"
+      SecurityGroupIngress:
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "34.231.46.156/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "34.231.46.196/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "34.231.46.200/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "34.251.98.237/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "35.182.32.42/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "35.182.64.46/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "52.16.48.80/32"         
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "52.18.204.201/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "52.60.206.186/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: "198.147.3.0/24"
+
+  SshBastionLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      LaunchConfigurationName: !Sub "${Project}-${Service}-${Environment}-ssh-bastion-launch-configuration"
+      BlockDeviceMappings:
+       - DeviceName: /dev/xvda
+         Ebs:
+           VolumeSize: 8
+           VolumeType: standard
+      IamInstanceProfile: !Ref SshBastionEc2Profile
+      ImageId: { "Fn::FindInMap" : [ "AWSRegionToAMI", { Ref: "AWS::Region" }, "AMIID" ] }
+      InstanceType: t3.nano
+      KeyName: dni-core-keypair 
+      SecurityGroups:
+       - !Ref SshSecurityGroup
+      UserData:
+          Fn::Base64:
+            Fn::Sub:
+              - |
+                #!/bin/bash -x
+                yum install python27-pip.noarch -y
+                pip install awscli --upgrade --user
+                ln -s /root/.local/bin/aws /usr/bin/
+                instance_id=`curl http://169.254.169.254/latest/meta-data/instance-id`
+                aws ec2 associate-address --allocation-id ${EipAllocId} --instance-id $instance_id --region ${AWS::Region}
+                aws s3 cp s3://${S3Bucket}/create_users.sh .
+                sh create_users.sh
+              - EipAllocId: !GetAtt SshBastionEip.AllocationId
+                S3Bucket: !Ref ConfigFilesS3
+
+  SshBastionAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      Cooldown: "300"
+      TerminationPolicies:
+       - OldestLaunchConfiguration
+       - OldestInstance            
+      DesiredCapacity: 1
+      LaunchConfigurationName: !Ref SshBastionLaunchConfig
+      MaxSize: 1
+      MinSize: 1
+      Tags: [
+        { Key: "Name", Value: { "Fn::Join": [ "-", [ { Ref: "Project" }, { Ref: "Environment" }, { Ref: "Service" }, { Ref: "AWS::Region" }, "bastion" ] ] }, PropagateAtLaunch: "true" },
+        { Key: "Management", Value: "managed", PropagateAtLaunch: "true" },
+        { Key: "Project", Value: { Ref: "Project" }, PropagateAtLaunch: "true" },
+        { Key: "Environment", Value: { Ref: "Environment" }, PropagateAtLaunch: "true" }
+      ]
+      VPCZoneIdentifier:
+       - Fn::ImportValue: !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}-public-alpha"
+       - Fn::ImportValue: !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}-public-beta"
+       - Fn::ImportValue: !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}-public-gamma"
+
+  ConfigFilesS3:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Project}-${Service}-${Environment}-${AWS::Region}" 
+
+########################################################################################################################
+# SSH  Bastion End
+########################################################################################################################

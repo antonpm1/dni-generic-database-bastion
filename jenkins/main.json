@@ -1,0 +1,31 @@
+{
+   "PROJECT": "dni",
+   "SERVICE": "generic-database-bastion",
+   "PROJECT_REPO": "generic-database-bastion",
+   "GIT_ORGANISATION": "dni-mercury",
+   "STACK_PREFIX": "mercury-ecs-{{ PROJECT}}-{{ SERVICE }}-{{ ENV }}",
+   "CF_FILE": "cf_infra.yml",
+   "REGION": "eu-west-1",
+   "ENVIRONMENTS": {
+      "pre-prod": {
+          "CLUSTER": "pre-prod",
+	  "BRANCH": "develop"
+      },
+      "uat": {
+          "CLUSTER": "uat",
+          "BRANCH": "master"
+      },
+      "prod": {
+          "CLUSTER": "prod",
+          "BRANCH": "master"
+      }      
+   },
+   "MODE_VARS": {
+      "deploy": {
+         "DEPLOY_TIMEOUT": 600
+      },
+      "infra": {
+	 "DEPLOY_TIMEOUT": 1800
+      }    
+   }
+}

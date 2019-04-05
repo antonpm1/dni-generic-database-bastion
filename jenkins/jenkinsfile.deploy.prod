@@ -1,0 +1,86 @@
+pipeline {
+
+   agent { label 'slave_Ansible' }
+
+   options {
+
+      disableConcurrentBuilds()
+
+   }
+
+   parameters {
+      
+      choice(choices: "ansible/main.yml", description: 'Path to main.yml as per ansible Job configuration from Tower', name: 'PLAYBOOK')
+      
+      choice(choices: "main", description: "Set of extra vars to feed ansible playbook.\n This should be in a JSON formatted file located in ansible/extra_vars folder\nCan be multiple sets if same playbook is used for multiple jobs (in a separate file for each set).\nFilename format is EXTRA_VARS_SET.json.", name: 'EXTRA_VARS_SET')
+
+      choice(choices: 'prod', description: "Environment to deploy into", name: 'ENV')
+
+      choice(choices: 'deploy' , description: "The action being taken", name: 'MODE')
+
+   }
+
+   stages {
+
+      stage ('CheckoutGitRepo') {
+         steps {
+
+            script {
+               currentBuild.displayName = "#" + env.BUILD_NUMBER + " PLAYBOOK: " + params.PLAYBOOK
+               currentBuild.description = "PLAYBOOK: " + params.PLAYBOOK + " EXTRA_VARS_SET: " + params.EXTRA_VARS_SET + ".json"
+            }
+
+            checkout scm
+
+         }
+      } 
+
+      stage ('PreBuildSetup') {
+         steps {
+
+            echo "Injecting Ansible Vault secrets"
+           
+            withCredentials([string(credentialsId: '9fb4e8b1-5e8e-4491-af41-bb8591f95503', variable: 'ANSIBLE_VAULT_PASS')]) {
+               sh 'echo $ANSIBLE_VAULT_PASS > ./pass'
+            }
+         
+         }
+      }
+
+      stage ('Deploy') {
+         steps {
+
+            echo "Executing ansible playbook run"
+
+            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', accessKeyVariable: 'AWS_ACCESS_KEY', credentialsId: '642005bf-57f0-49b9-a4e3-2fdf275d5c90', secretKeyVariable: 'AWS_SECRET_KEY']]) {
+               sh """
+                  PATH=~/.local/bin:$PATH ansible-playbook -c local -i "localhost," --vault-password-file ./pass --extra-vars "@jenkins/${params.EXTRA_VARS_SET}.json" --extra-vars "ENV=${params.ENV} MODE=deploy" ${params.PLAYBOOK} --tags build_scripts
+               """
+            }
+
+         }
+      }
+
+      stage ('GetVersion') {
+         steps {
+
+            script {
+               env.VERSION = readFile 'version.txt'
+               currentBuild.description = "PLAYBOOK: " + params.PLAYBOOK + " EXTRA_VARS_SET: " + params.EXTRA_VARS_SET + ".json VERSION: " + env.VERSION
+            }
+
+         }
+      }
+   }
+
+   post {
+
+      success {
+         slackSend color: "good", message: "Build SUCCESS | ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)\nParameters | PLAYBOOK: ${params.PLAYBOOK} | EXTRA_VARS_SET: ${params.EXTRA_VARS_SET}.json | VERSION: ${env.VERSION}"
+      }
+
+      failure {
+         slackSend color: "danger", message: "Build FAILED | ${env.JOB_NAME} ${env.BUILD_NUMBER} (<${env.BUILD_URL}|Open>)\nParameters | PLAYBOOK: ${params.PLAYBOOK} | EXTRA_VARS_SET: ${params.EXTRA_VARS_SET}.json | VERSION: ${env.VERSION}"
+      }
+   }
+}

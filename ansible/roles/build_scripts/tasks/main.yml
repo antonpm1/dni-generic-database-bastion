@@ -1,0 +1,21 @@
+---
+- name: Set working_directory
+  set_fact:
+    working_directory: "{{ ansible_env.WORKSPACE }}"
+
+- name: Create working dir 
+  file:
+    state: directory
+    path: "{{ working_directory }}/work"
+
+- name: Generate script for adding users
+  template:
+    src: create_users.sh.j2
+    dest: "{{ working_directory }}/work/create_users.sh"
+
+- name: Push scripts to s3
+  aws_s3:
+    bucket: "{{ PROJECT }}-{{ SERVICE }}-{{ ENV }}-{{ REGION }}"  
+    object: create_users.sh
+    src: "{{ working_directory }}/work/create_users.sh"
+    mode: put
