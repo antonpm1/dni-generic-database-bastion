@@ -1,4 +1,17 @@
 ---
+# The next task is done like this because Cloudfront exports don't cross AZs
+- name: Get Admin VPN NAT IPs
+  cloudformation_facts:
+    stack_name: "{{ ADMIN_VPC_STACK_NAME }}"
+    region: "{{ ADMIN_VPC_STACK_REGION }}"
+  register: admin_vpc_facts
+
+- name: Set Admin VPC NAT Gateway IP facts
+  set_fact:
+    admin_vpc_nat_gw_alpha: "{{ admin_vpc_facts.ansible_facts.cloudformation[ ADMIN_VPC_STACK_NAME ][ 'stack_outputs' ][ 'NatGatewayAlpha' ] }}"
+    admin_vpc_nat_gw_beta: "{{ admin_vpc_facts.ansible_facts.cloudformation[ ADMIN_VPC_STACK_NAME ][ 'stack_outputs' ][ 'NatGatewayBeta' ] }}"
+    admin_vpc_nat_gw_gamma: "{{ admin_vpc_facts.ansible_facts.cloudformation[ ADMIN_VPC_STACK_NAME ][ 'stack_outputs' ][ 'NatGatewayGamma' ] }}"
+
 # Execute template
 - name: Execute Cloudformation File
   cloudformation:
@@ -12,6 +25,9 @@
       Service: "{{ SERVICE }}"
       Cluster: "{{ ENVIRONMENTS[ ENV ][ 'CLUSTER' ] }}"
       Environment: "{{ ENV }}"
+      AdminNatGatewayIpAlpha: "{{ admin_vpc_nat_gw_alpha }}"
+      AdminNatGatewayIpBeta: "{{ admin_vpc_nat_gw_beta }}"
+      AdminNatGatewayIpGamma: "{{ admin_vpc_nat_gw_gamma }}"
     tags:
       Stack: "{{ STACK_PREFIX }}"
   register: cf_infra_stack

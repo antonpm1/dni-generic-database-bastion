@@ -56,7 +56,7 @@ pipeline {
 
             withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', accessKeyVariable: 'AWS_ACCESS_KEY', credentialsId: '642005bf-57f0-49b9-a4e3-2fdf275d5c90', secretKeyVariable: 'AWS_SECRET_KEY']]) {
                sh """
-                  PATH=~/.local/bin:$PATH ansible-playbook -c local -i "localhost," --vault-password-file ./pass --extra-vars "@jenkins/${params.EXTRA_VARS_SET}.json" --extra-vars "ENV=${params.ENV} MODE=deploy" ${params.PLAYBOOK} --tags build_scripts
+                  PATH=~/.local/bin:$PATH ansible-playbook -c local -i "localhost," --vault-password-file ./pass --extra-vars "@jenkins/${params.EXTRA_VARS_SET}.json" --extra-vars "ENV=${params.ENV} MODE=deploy" ${params.PLAYBOOK} --tags setup_infra,build_and_launch_instance
                """
             }
 

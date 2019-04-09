@@ -6,6 +6,8 @@
    "STACK_PREFIX": "mercury-ecs-{{ PROJECT}}-{{ SERVICE }}-{{ ENV }}",
    "CF_FILE": "cf_infra.yml",
    "REGION": "eu-west-1",
+   "ADMIN_VPC_STACK_NAME": "core-admin-vpc",
+   "ADMIN_VPC_STACK_REGION": "eu-west-1",
    "ENVIRONMENTS": {
       "pre-prod": {
           "CLUSTER": "pre-prod",

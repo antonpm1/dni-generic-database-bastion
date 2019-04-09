@@ -13,8 +13,8 @@
      - "users/main.yml"
 
    roles:
-     - { role: build_scripts, tags: [ "build_scripts" ] }
-     - { role: setup_infra, tags: [ "setup_infra" ] }
+     - { role: setup_infra, tags: [ "setup_infra" ] }           
+     - { role: build_and_launch_instance, tags: [ "build_and_launch_instance" ] }
 
    environment:
      AWS_REGION: "{{ REGION }}"

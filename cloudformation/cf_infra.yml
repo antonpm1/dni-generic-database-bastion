@@ -27,6 +27,18 @@ Parameters:
     Description: "Cluster in which to deploy the service"
     AllowedValues: [ "pre-prod", "uat", "prod" ]
 
+  AdminNatGatewayIpAlpha:
+    Type: "String"
+    Description: "IP for Admin VPC Alpha Nat GW"
+
+  AdminNatGatewayIpBeta:
+    Type: "String"
+    Description: "IP for Admin VPC Beta Nat GW"
+
+  AdminNatGatewayIpGamma:
+    Type: "String"
+    Description: "IP for Admin VPC Gamma Nat GW"    
+
 Mappings:
   VPCCidrMap: { all: { Cidr: "0.0.0.0/0" }, vpc: { Cidr: "10.0.0.0/8" }, officeIP: { Cidr: "198.147.19.2/32" } }
   AWSRegionToAMI:
@@ -183,6 +195,18 @@ Resources:
          FromPort: 22
          ToPort: 22
          CidrIp: "198.147.3.0/24"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: !Sub "${AdminNatGatewayIpAlpha}/32"
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: !Sub "${AdminNatGatewayIpBeta}/32"         
+       - IpProtocol: "tcp"
+         FromPort: 22
+         ToPort: 22
+         CidrIp: !Sub "${AdminNatGatewayIpGamma}/32"         
 
   SshBastionLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -225,12 +249,10 @@ Resources:
       LaunchConfigurationName: !Ref SshBastionLaunchConfig
       MaxSize: 1
       MinSize: 1
-      Tags: [
-        { Key: "Name", Value: { "Fn::Join": [ "-", [ { Ref: "Project" }, { Ref: "Environment" }, { Ref: "Service" }, { Ref: "AWS::Region" }, "bastion" ] ] }, PropagateAtLaunch: "true" },
-        { Key: "Management", Value: "managed", PropagateAtLaunch: "true" },
-        { Key: "Project", Value: { Ref: "Project" }, PropagateAtLaunch: "true" },
-        { Key: "Environment", Value: { Ref: "Environment" }, PropagateAtLaunch: "true" }
-      ]
+      Tags:
+       - Key: Name
+         Value: !Sub "${Project}-${Service}-${Environment}-${AWS::Region}-db-bastion"
+         PropagateAtLaunch: 'true'
       VPCZoneIdentifier:
        - Fn::ImportValue: !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}-public-alpha"
        - Fn::ImportValue: !Sub "${Project}-${Cluster}-mercury-ecs-${AWS::Region}-public-beta"
@@ -244,3 +266,15 @@ Resources:
 ########################################################################################################################
 # SSH  Bastion End
 ########################################################################################################################
+Outputs:
+  BastionElasticIp:
+    Description: Elastic IP assigned to Bastion
+    Value: !Ref SshBastionEip
+
+  BastionName:
+    Description: Name of DB Bastion 
+    Value: !Sub "${Project}-${Service}-${Environment}-${AWS::Region}-db-bastion"
+
+  S3Bucket:
+    Description: Name of S3 bucket script is uploaded to
+    Value: !Ref ConfigFilesS3
