@@ -1,0 +1,69 @@
+---
+- name: Set working_directory
+  set_fact:
+    working_directory: "{{ ansible_env.WORKSPACE }}"
+
+- name: Create working dir 
+  file:
+    state: directory
+    path: "{{ working_directory }}/work"
+
+- name: Generate script for adding users
+  template:
+    src: create_users.sh.j2
+    dest: "{{ working_directory }}/work/create_users.sh"
+
+- name: Fetch Cloudformation facts to get Elastic IP
+  cloudformation_facts:
+    stack_name: "{{ STACK_PREFIX }}"
+    region: "{{ REGION }}"
+  register: cf_facts
+
+- name: Set Stack Facts
+  set_fact:
+    elastic_ip: "{{ cf_facts.ansible_facts.cloudformation[ STACK_PREFIX ][ 'stack_outputs' ][ 'BastionElasticIp' ] }}"
+    instance_name: "{{ cf_facts.ansible_facts.cloudformation[ STACK_PREFIX ][ 'stack_outputs' ][ 'BastionName' ] }}"
+    s3_bucket: "{{ cf_facts.ansible_facts.cloudformation[ STACK_PREFIX ][ 'stack_outputs' ][ 'S3Bucket' ] }}"
+
+- name: Push scripts to s3
+  aws_s3:
+    bucket: "{{ s3_bucket }}"
+    object: create_users.sh
+    src: "{{ working_directory }}/work/create_users.sh"
+    mode: put
+
+- name: Get facts for running ec2 instance
+  ec2_instance_facts:
+    region: "{{ REGION }}"
+    filters:
+      "tag:Name": "{{ instance_name }}"
+      instance-state-name: running
+  register: ec2_facts
+
+- name: Set EC2 Instance ID
+  set_fact:
+    ec2_id: "{{ ec2_facts.instances.0.instance_id }}"
+
+- name: Terminate existing instance
+  ec2: 
+    instance_ids: 
+      - "{{ ec2_id }}"
+    state: absent
+
+- name: Wait for new instance to arrive and have correct IP assigned
+  ec2_instance_facts:
+    region: "{{ REGION }}"
+    filters:
+      "tag:Name": "{{ instance_name }}"
+      instance-state-name: running
+  register: ec2_facts_new
+  until: ( ec2_facts_new.instances.0 is defined ) and ( ec2_facts_new.instances.0.state.name == "running" ) and ( ec2_facts_new.instances.0.public_ip_address == elastic_ip )
+  delay: 10
+  retries: 60
+
+- name: Ensure port 22 is available (checks for 60 seconds before failing)
+  wait_for:
+    host: "{{ elastic_ip }}"
+    port: 22
+    delay: 5
+    timeout: 60 
